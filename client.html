@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+   <head>
+		<link rel="stylesheet" type="text/css" href="style.css">
+      <script src="/socket.io/socket.io.js"></script>
+      <script type="text/javascript" src="http://code.jquery.com/jquery-latest.js"></script>
+		<link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.7.2/themes/start/jquery-ui.css" type="text/css" rel="Stylesheet" />	
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.3/jquery.min.js"></script>		
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.5/jquery-ui.min.js"></script>
+      <script type ="text/javascript">
+      var socketio = io.connect();
+      socketio.on("connect", function(){
+			//on connect, ask for a username
+         socketio.emit("addUser", prompt("What is your name?"));
+      });
+      
+      socketio.on("update", function(newInfo) {
+			//update the chatlog with the message or information
+         var p = document.getElementById("chatlog").appendChild(document.createElement("p"));
+         p.appendChild(document.createTextNode(newInfo));
+      });
+      
+      socketio.on("who", function(people) {
+			//list everyone in the room
+			$('#inside').empty();
+         document.getElementById("inside").innerHTML = people;
+      });
+      
+      function switchRoom(room){
+			//redirect to the server side to actually do the switch room
+         socketio.emit('switchRoom', room);
+      }
+		
+		 function privateRoom(room){
+			//redirect to the privateRoom function to actually do work
+         socketio.emit('privateRoom', room);
+      }
+      
+      socketio.on("updateRoom", function(rooms, current_room){
+			//update what room your in by showing your current room in bold text and all the other rooms in links
+         $("#inside").empty();
+         $("#rooms").empty();
+			for(var i=0; i<rooms.length; i++){
+				if(rooms[i].roomName == current_room){
+               $("#rooms").append("<div><b>" + rooms[i].roomName + "</b></div>");
+            }
+            else{
+               if(rooms[i].hasOwnProperty('password')){
+						console.log(rooms[i].roomName + " hass password" + rooms[i].password);
+						$('#rooms').append('<div><a href="#" onclick="privateRoom(\''+rooms[i].roomName+'\')">' + rooms[i].roomName + '</a></div>');
+					}
+					else{
+						console.log(rooms[i].hasOwnProperty('password'));
+						$('#rooms').append('<div><a href="#" onclick="switchRoom(\''+rooms[i].roomName+'\')">' + rooms[i].roomName + '</a></div>');
+					}
+            }
+			}
+      });
+		
+      socketio.on("addRoom", function(rooms, current_room){
+			//same as update room, but go through the new json of rooms 
+         $("#rooms").empty();
+         for(var i=0; i<rooms.length; i++){
+				if(rooms[i].roomName == current_room){
+               $("#rooms").append("<div><b>" + rooms[i].roomName + "</b></div>");
+            }
+            else{
+					if(rooms[i].hasOwnProperty('password')){
+						console.log(rooms[i].roomName + " hass password" + rooms[i].password);
+						$('#rooms').append('<div><a href="#" onclick="privateRoom(\''+rooms[i].roomName+'\')">' + rooms[i].roomName + '</a></div>');
+					}
+					else{
+						console.log(rooms[i].hasOwnProperty('password'));
+						$('#rooms').append('<div><a href="#" onclick="switchRoom(\''+rooms[i].roomName+'\')">' + rooms[i].roomName + '</a></div>');
+					}
+            }
+			}
+      });
+			
+		socketio.on("tryna", function(room){
+			//when a user is trying to get into a password protected room, prompt them for the password
+			socketio.emit("checkPw", room, prompt("What's the Password?"));
+		});
+		
+      socketio.on("message_to_client",function(username, data) {
+			//update the chatlog
+         var message = document.getElementById("chatlog").appendChild(document.createElement("p"));
+         message.appendChild(document.createTextNode(username+ ": " + data['message']));
+			message.style.color = "DodgerBlue";
+			message.style.fontSize= "20px";		
+      });
+      
+		socketio.on("whatsup", function(from, msg){
+			//private messages are in italics
+			var secretMsg = document.getElementById("chatlog").appendChild(document.createElement("p"));
+         secretMsg.appendChild(document.createTextNode("~" + from + ": " + msg + "~"));
+			secretMsg.style.fontStyle = "italic";
+		});
+
+ 
+      function sendMessage(){
+			//send a message by getting the value from the message input and emitting it to the server side
+         var msg = document.getElementById("message_input").value;
+         socketio.emit("message_to_server", {message:msg});
+			$('#message_input').val("");
+      }
+      
+      function newRoom(){
+			//get the new room value and send it to the server side
+         var roomName = document.getElementById("newRoom").value;
+         socketio.emit("addRoom", roomName);
+			$('#kick').empty();
+			$('#kick').append('<input type="text" id="dumb"/>');
+			$('#kick').append('<button onclick="kick()">kick</button>');
+			$('#kick').append('<button onclick="ban()">ban</button>');
+      }
+      
+		function kick(){
+			//get the person of who to kick and send it to the server
+			var kickWhom = document.getElementById("dumb").value;
+			socketio.emit("kick", kickWhom);
+		}
+		
+		function ban(){
+			//get the name of who to ban and send it to the server
+			var banWhom = document.getElementById("dumb").value;
+			socketio.emit('ban', banWhom);
+		}
+		
+		function dm(){
+			//get the private message and the person and send it to the server
+			var msg = document.getElementById("dm").value;
+			var to = document.getElementById("to").value;
+			socketio.emit("dm", to, msg);
+		}
+		
+		function withPw(){
+			//same as addRoom but also prompt for a password
+			var roomName = document.getElementById("newRoom").value;
+         socketio.emit("addWithPw", roomName, prompt("Set password:"));
+			$('#kick').empty();
+			$('#kick').append('<input type="text" id="dumb"/>');
+			$('#kick').append('<button onclick="kick()">kick</button>');
+			$('#kick').append('<button onclick="ban()">ban</button>');
+		}
+		
+		$(function(){
+			// when the client hits ENTER on their keyboard
+			$('#message_input').keypress(function(e) {
+				if(e.which == 13) {
+					$(this).blur();
+					$('#msg_button').focus().click();
+				}
+			});
+		});
+
+		
+      </script>
+		<title>Chat Room</title>
+		<style>
+			#message{
+				position: fixed;
+				bottom: 0px;
+				width: 100%;
+				margin-bottom: 20px;
+				padding: 30px;
+			}
+			
+			#message input{
+				width: 60%;
+				height: 30px;
+			}
+			
+			#message button{
+				height: 34px;
+				 background-color: DodgerBlue;
+				 border: none;
+				 color: White;
+			}
+			
+			#sidebar{
+				float: right;
+				margin: 0 100px;
+				margin-left: 0px;
+				padding: 20px;
+				width: 220px;
+				height: 100%;
+				border-left: 1px solid Grey;
+				line-height: 2em;
+			}
+			
+			#sidebar button{
+				background-color: Grey;
+				border: none;
+				Color: white;
+				height: 25px;
+			}
+			
+			#sidebar input{
+				height: 20px;
+			}
+			
+			#private{
+				height: 110px;
+			}
+			#private label{
+				position: relative;
+				float: right;
+			}
+			
+			#private button{
+				position: relative;
+				float: right;
+				width: 71%;
+			}
+			
+			#createrPriv{
+				position: relative;
+				top: 15px;
+			}
+			#inside{
+				color: DarkCyan;
+			}
+			#chatlog{
+				height: 600px;
+				overflow-y: scroll;
+				width: 1311px;
+				margin-right: 0px;
+			}
+		</style>
+   </head>
+   <body>
+		<div id="message">
+			<input type="text" id="message_input"/>
+			<button id="msg_button" onclick="sendMessage()">send</button>
+		</div>
+		<div id="sidebar">
+			<h2>ROOMS</h2>
+			<div id="rooms"></div>
+			<h3>Create a new room</h3>
+			<input type="text" id="newRoom"/>
+			<button onclick="newRoom()">Create</button>
+			<button onclick="withPw()">With PW</button>
+			<h3>Private Message</h3>
+			<div id="private">
+				<label>To: <input type="text" id="to" placeholder="Type the name of a person"/></label>
+				<label>Message: <input type="text" id="dm" placeholder="What would you like to say"/></label>
+				<button onclick="dm()">slip into the dms</button>	
+			</div>
+			<p id="createrPriv">If you are the creater of the room you can kick people out!</p>
+			<div id="kick"></div>
+		</div>
+      <div id="inside"></div>
+      <div id="chatlog"></div>
+   </body>
+</html>
